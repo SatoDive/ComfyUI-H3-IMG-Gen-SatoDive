@@ -79,6 +79,10 @@ https://www.patreon.com/SatoDive/posts/minimax-h3-is-171110570
 - **Detail pass:** an upscale model sharpens and adds texture, but it does not redraw faces. At very low `detail_strength` it does almost nothing.
 - **VRAM:** a 4x upscale model turns a 3 MP image into a roughly 48 MP intermediate, which is slow and memory-hungry on small GPUs.
 
+##
+No other custom node pack is needed. The single-frame still latent and still decode are built in
+(adapted from [ComfyUI-Fizgig-H3-Still](https://github.com/shootthesound/ComfyUI-Fizgig-H3-Still), MIT).
+
 ## Status
 
 Work in progress. Report problems in the Issues tab.
