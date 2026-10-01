@@ -29,7 +29,6 @@ One main node, one sampling pass, and exact control over the final resolution. W
 ## Requirements
 
 - A ComfyUI build with the native MiniMax H3 nodes (`comfy_extras/nodes_minimax_h3.py`)
-- The Fizgig H3 Still nodes (still latent and decode)
 - Your H3 model, text encoder and VAE. A turbo LoRA and an upscale model are optional.
 
 ## Installation
