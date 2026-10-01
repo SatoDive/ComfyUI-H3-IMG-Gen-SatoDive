@@ -4,6 +4,18 @@ Simple, predictable ComfyUI nodes for **MiniMax H3** image generation.
 
 One main node, one sampling pass, and exact control over the final resolution. What you set is what you get.
 
+## Video Tutorial & Walkthrough
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=YOUR_VIDEO_ID">
+    <img src="https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg" alt="MiniMax-H3 ComfyUI Tutorial" width="750">
+  </a>
+</p>
+
+<p align="center">
+  ▶️ <i>Click the image above to watch the complete step-by-step walkthrough on YouTube.</i>
+</p>
+
 ## Features
 
 - **One main node** (*H3 Image (Simple)*): prompt, up to 9 reference images, size, sampling and decode in one place.
