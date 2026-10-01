@@ -71,19 +71,8 @@ Optional last step:
 - **Target megapixels**: keeps the aspect ratio
 - **Keep size (detail only)**: adds detail with the upscale model, then shrinks back to the current resolution
 
-### Legacy nodes
-
-Still included so older workflows keep loading: *H3 Size Presets*, *H3 Latent Upscale*, *H3 Prompt & Size*, *H3 Image Generation*, *H3 Draft Grid* and *H3 Refine Winner*.
-
-## Workflows
-
-Drag a file from the `Workflows` folder into ComfyUI:
-
-- `satodive_h3_simple.json`: text to image
-- `satodive_h3_reference.json`: image generation with a reference image
-- `satodive_h3_draft_grid.json`: render several drafts and pick one
-
-The original versions are in `Workflows/legacy`. After loading a workflow, check that the model, LoRA and text encoder file names match the files on your machine.
+## Workflows free to download :
+https://www.patreon.com/SatoDive/posts/minimax-h3-is-171110570
 
 ## Tips
 
