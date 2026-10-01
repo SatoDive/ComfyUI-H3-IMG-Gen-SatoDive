@@ -7,8 +7,8 @@ One main node, one sampling pass, and exact control over the final resolution. W
 ## Video Tutorial & Walkthrough
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=YOUR_VIDEO_ID">
-    <img src="https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg" alt="MiniMax-H3 ComfyUI Tutorial" width="750">
+  <a href="https://www.youtube.com/watch?v=A53fIhsyTm8">
+    <img src="https://img.youtube.com/vi/A53fIhsyTm8/maxresdefault.jpg" alt="MiniMax-H3 ComfyUI Tutorial" width="750">
   </a>
 </p>
 
