@@ -9,6 +9,6 @@ dependencies = []
 Repository = "https://github.com/SatoDive/ComfyUI-H3-IMG-Gen-SatoDive"
 
 [tool.comfy]
-PublisherId = "SatoDive"
+PublisherId = "satodive-comfy"
 DisplayName = "MiniMax H3 Image Gen - SatoDive"
 Icon = ""
