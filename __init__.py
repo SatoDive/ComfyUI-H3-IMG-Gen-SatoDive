@@ -588,3 +588,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SatoDiveH3Image": "H3 Image (Simple) - SatoDive",
     "SatoDiveH3FinalSize": "H3 Final Size - SatoDive"
 }
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
