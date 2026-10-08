@@ -1,8 +1,7 @@
-"""SatoDive H3: all-in-one nodes for MiniMax H3 stills. Standalone: only needs a ComfyUI build with native MiniMax H3."""
+"""SatoDive H3: all-in-one nodes for MiniMax H3 stills. Standalone: the one-frame latent and the still decode are built in."""
 import math
 import torch
 import torch.nn.functional as F
-import comfy.model_management
 import comfy.nested_tensor
 import comfy.samplers
 import comfy.utils
@@ -91,55 +90,60 @@ def _run(cls, **kw):
 
 
 # ---------------------------------------------------------------------------
-# Single-frame H3 latent + still decode, built in (adapted from ComfyUI-Fizgig-H3-Still by Peter Neill, MIT).
-# ComfyUI's own H3 latents start at 5 frames; H3's native image convention is ONE latent frame.
+# Built-in one-frame H3 still latent + decode (no other custom node needed).
+# Same method as Fizgig H3 Still by Peter Neill (MIT, github.com/shootthesound/ComfyUI-Fizgig-H3-Still):
+# H3's image convention is ONE latent frame; the stock VAE Decode bands a lone latent frame, so the frame is
+# replicated into a full 5-latent group, decoded, and pixel frame 3 (past the decoder's causal lead-in) is kept.
 # ---------------------------------------------------------------------------
-
-_FPS, _AUDIO_LATENT_FPS = 24, 40
+_STILL_FPS, _AUDIO_LATENT_FPS = 24, 40
 
 
 class _StillLatent:
     def make(self, width, height, batch_size=1):
+        import comfy.model_management
         dev = comfy.model_management.intermediate_device()
-        # the DiT patchifies 2x2 on a 16x latent grid, so the latent size must be even
-        lh, lw = (height // 16) // 2 * 2, (width // 16) // 2 * 2
+        lh, lw = (height // 16) // 2 * 2, (width // 16) // 2 * 2   # the DiT patchifies 2x2: even latent grid
         video = torch.zeros([batch_size, 24, 1, lh, lw], device=dev)
-        audio_t = max(1, round(1 / _FPS * _AUDIO_LATENT_FPS))
-        audio = torch.zeros([batch_size, 32, 2, audio_t], device=dev)
+        audio = torch.zeros([batch_size, 32, 2, max(1, round(1 / _STILL_FPS * _AUDIO_LATENT_FPS))], device=dev)
         return ({"samples": comfy.nested_tensor.NestedTensor((video, audio))},)
 
 
 class _StillDecode:
-    """The stock VAE Decode bands a lone H3 latent frame. Replicate it into a full 5-latent group, decode that,
-    and keep pixel frame 3 (just past the decoder's causal lead-in). Clips go through the stock decode."""
     GROUP, KEEP = 5, 3
 
     def decode(self, vae, samples):
+        import comfy.model_management as mm
         latent = samples["samples"]
         if getattr(latent, "is_nested", False):
             latent = latent.unbind()[0]
-        fsm = vae.first_stage_model
+        fsm = getattr(vae, "first_stage_model", None)
         if latent.ndim != 5 or latent.shape[2] != 1 or not hasattr(fsm, "_adaptive_decode"):
-            images = vae.decode(latent)
+            images = vae.decode(latent)          # clips / other VAEs: the stock path
             if len(images.shape) == 5:
                 images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
             return (images,)
         group_shape = (1, latent.shape[1], self.GROUP, latent.shape[3], latent.shape[4])
-        mem = vae.memory_used_decode(group_shape, vae.vae_dtype)
-        comfy.model_management.load_models_gpu([vae.patcher], memory_required=mem,
-                                               force_full_load=getattr(vae, "disable_offload", False))
+        mm.load_models_gpu([vae.patcher], memory_required=vae.memory_used_decode(group_shape, vae.vae_dtype),
+                           force_full_load=getattr(vae, "disable_offload", False))
         out = []
         with torch.no_grad():
             for b in range(latent.shape[0]):
                 z = latent[b:b + 1].to(device=vae.device, dtype=vae.vae_dtype)
                 lm = fsm.latents_mean.view(1, -1, 1, 1, 1).to(z)
                 ls = fsm.latents_std.view(1, -1, 1, 1, 1).to(z)
-                zz = (z * ls + lm).repeat(1, 1, self.GROUP, 1, 1)
-                raw = fsm._adaptive_decode(zz)
+                raw = fsm._adaptive_decode((z * ls + lm).repeat(1, 1, self.GROUP, 1, 1))
                 px = fsm._finalize_pixels(raw[:, :, self.KEEP:self.KEEP + 1])
-                out.append(px[:, :, 0].movedim(1, -1).to(comfy.model_management.intermediate_device()))
-                del raw, zz
+                out.append(px[:, :, 0].movedim(1, -1).to(mm.intermediate_device()))
+                del raw
         return (torch.cat(out),)
+
+
+_STILL = {"FizgigH3StillLatent": _StillLatent, "FizgigH3StillDecode": _StillDecode}
+
+
+def _fizgig(name):
+    """The one-frame latent / decode helpers (built in - the pack needs no other custom node)."""
+    return _STILL[name]()
 
 
 def _native(name):
@@ -194,7 +198,7 @@ class SatoDiveH3Prompt:
                         ref_image_size=ref_image_size, ref_images=refs)[0]
         else:
             cond = _run(_native("i2v"), clip=clip, vae=vae, prompt=prompt, width=w, height=h, length=5)[0]
-        lat = _StillLatent().make(width=w, height=h, batch_size=1)[0]
+        lat = _fizgig("FizgigH3StillLatent").make(width=w, height=h, batch_size=1)[0]
         return (cond, lat)
 
 
@@ -298,7 +302,7 @@ def _refine_and_finish(m, vae, positive, lat, seed, scale, steps, strength, samp
             strength = _auto_strength(scale)
         lat = SatoDiveH3LatentUpscale().up(lat, scale, "bicubic")[0]
         lat = _sample(m, positive, lat, seed + 1, steps, 1.0, sampler_name, scheduler, start_sigma=strength)
-    img = _StillDecode().decode(vae=vae, samples=lat)[0]
+    img = _fizgig("FizgigH3StillDecode").decode(vae=vae, samples=lat)[0]
     if upscale_model != "None":
         img = _pixel_upscale(img, upscale_model, upscale_to_mp)
     return img
@@ -327,7 +331,7 @@ class SatoDiveH3Generate:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "generate"
     CATEGORY = "SatoDive/H3"
-    DESCRIPTION = ("Turbo LoRA + draft sampling + optional latent-upscale refine + still decode, in one node. "
+    DESCRIPTION = ("Turbo LoRA + draft sampling + optional latent-upscale refine + one-frame still decode, in one node. "
                    "Presets: Fast 2-pass / Fast draft / Max quality / Custom.")
 
     def generate(self, model, vae, positive, latent, preset, seed, lora_name, steps, lora_strength,
@@ -371,7 +375,7 @@ class SatoDiveH3Draft:
 
     def draft(self, model, vae, positive, latent, drafts, seed, lora_name, steps, lora_strength, sampler_name, scheduler):
         m = _apply_lora(model, lora_name, lora_strength)
-        dec = _StillDecode()
+        dec = _fizgig("FizgigH3StillDecode")
         lats, imgs = [], []
         for i in range(drafts):  # H3 supports batch size 1 only -> one draft at a time
             lat = _sample(m, positive, latent, seed + i, steps, 1.0, sampler_name, scheduler)
@@ -504,11 +508,11 @@ class SatoDiveH3Image:
             else:
                 cond = _run(_native("i2v"), clip=clip, vae=vae, prompt=prompt, width=gen_w, height=gen_h, length=5)[0]
             _COND_CACHE["key"], _COND_CACHE["val"] = key, cond
-        latent = _StillLatent().make(width=gen_w, height=gen_h, batch_size=1)[0]
+        latent = _fizgig("FizgigH3StillLatent").make(width=gen_w, height=gen_h, batch_size=1)[0]
 
         m = _apply_lora(model, lora_name, lora_strength)
         lat = _sample(m, cond, latent, seed, steps, 1.0, sampler_name, scheduler)
-        img = _StillDecode().decode(vae=vae, samples=lat)[0]
+        img = _fizgig("FizgigH3StillDecode").decode(vae=vae, samples=lat)[0]
         img = _detail_refine(img, detail_model, detail_strength)
 
         if exact_size and (img.shape[2], img.shape[1]) != (want_w, want_h):
@@ -588,4 +592,3 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SatoDiveH3Image": "H3 Image (Simple) - SatoDive",
     "SatoDiveH3FinalSize": "H3 Final Size - SatoDive"
 }
-__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
