@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-h3-img-gen-satodive"
 description = "Simple, predictable ComfyUI nodes for MiniMax H3 image generation."
-version = "1.0.0"
+version = "1.1.0"
 license = { text = "MIT" }
 dependencies = []
 
